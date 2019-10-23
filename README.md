@@ -8,11 +8,12 @@ Simple UDP packet generator for sending and receiving small bits of data. Create
 (2) The list of compatible NICs is provided by this link: https://github.com/snabbco/snabb/blob/master/src/lib/hardware/pci.lua, line 61.
 
 **Setup**
-1. Clone this repository: https://github.com/NolanRudolph/MultiDimSnabb.git
-2. Clone the snabb repository: https://github.com/snabbco/snabb.git
-3. cd MultiDimSnabb
-4. bash automake.sh
-5. A binary executable named "snabb" can be found in ~/snabb/src. cd into ~/snabb/src, and call ./snabb MultiDimSnabb to acquire instructions on how to run my program
+1. Begin in your home directory 
+2. Clone this repository: https://github.com/NolanRudolph/MultiDimSnabb.git
+3. Clone the snabb repository: https://github.com/snabbco/snabb.git
+4. cd MultiDimSnabb
+5. bash automake.sh
+6. A binary executable named "snabb" can be found in ~/snabb/src. Call ```~/snabb/src/snabb MultiDimSnabb`` to acquire instructions on how to run my program
 
 **Client**  
 For client nodes looking to spam a server with UDP packets, make sure to run ```~/snabb/src/snabb MultiDimSnabb Client --help``` for more information.
