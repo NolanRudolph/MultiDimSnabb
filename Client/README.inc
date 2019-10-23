@@ -4,5 +4,5 @@ Usage: MultiDimSnabb Client <Src> <Dst> <PCI>
   Dst: Destination MAC Address
   PCI: PCI Address of Intel82599 NIC
 
-Examples:
-  MultiDimSnabb Client 00:01:02:03:04:05 00:06:07:08:09:10 01:00.0
+Example:
+  ./snabb MultiDimSnabb Client 00:01:02:03:04:05 00:06:07:08:09:10 01:00.0
