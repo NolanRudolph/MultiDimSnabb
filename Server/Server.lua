@@ -41,7 +41,12 @@ end
 function Recorder:record_packet(i)
 	local p = link.receive(i)
 
-	-- Do recording stuff
+	local dgram = datagram:new(p, ethernet)
+	dgram:parse_n(3)
+	
+	local eth, ip, udp = unpack(dgram:stack())
+
+	print("Eth source is: " .. ethernet:ntop(eth:src()))
 
 	packet.free(p)
 end
