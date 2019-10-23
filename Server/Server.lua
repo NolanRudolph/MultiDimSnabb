@@ -7,7 +7,7 @@ local lib        = require("core.lib")
 -- App association requirements
 local app        = require("core.app")
 local link       = require("core.link")
-local LoadGen    = require("apps.intel_mp.loadgen").LoadGen
+local Intel82599 = require("apps.intel_mp.intel_mp").Intel82599
 
 -- Packet creation requirements
 local packet     = require("core.packet")
@@ -32,16 +32,13 @@ function Recorder:new(args)
 end
 
 function Recorder:push()
-	local i = assert(self.input.input, "Input port not found.")
-
+	local i = self.input.input
 	while not link.empty(i) do
 		self:record_packet(i)
 	end
 end
 
 function Recorder:record_packet(i)
-	print("Received packet.")
-	
 	local p = link.receive(i)
 
 	-- Do recording stuff
@@ -61,24 +58,16 @@ function run(args)
 
 	local pci_addr = args[1]
 
-	--[[
-	config.app(c, "nic", Intel, 
+	config.app(c, "nic", Intel82599, 
 	{
 		pciaddr = pci_addr
 	})
-	--]]
-
-	--config.app(c, "nic", LoadGen, pci_addr)
-	--config.link(c, "nic.output -> recorder.input")
-
-	local RawSocket = raw_sock.RawSocket
-	config.app(c, "receiver", RawSocket, "enp6s0f0")
 
 	config.app(c, "recorder", Recorder)
 
-	config.link(c, "receiver.tx -> recorder.input")
+	config.link(c, "nic.output -> recorder.input")
 	
 	engine.busywait = true
 	engine.configure(c)
-	engine.main({report = {showlinks = true}, duration = 10})
+	engine.main({report = {showlinks = true, showapps = true}, duration = 10})
 end
