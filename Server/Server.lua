@@ -26,28 +26,41 @@ local raw_sock = require("apps.socket.raw")
 
 Recorder = {}
 
+dataset = {}
+
 function Recorder:new(args)
-	local o = {}
+	local o = 
+	{
+		eth_set = {}
+	}
 	return setmetatable(o, {__index = Recorder})
 end
 
 function Recorder:push()
 	local i = self.input.input
 	while not link.empty(i) do
-		self:record_packet(i)
+		record_packet(i)
 	end
 end
 
-function Recorder:record_packet(i)
+function record_packet(i)
 	local p = link.receive(i)
 
+	-- LARGE OVERHEAD
 	local dgram = datagram:new(p, ethernet)
 	dgram:parse_n(3)
 	
-	local eth, ip, udp = unpack(dgram:stack())
+	local eth, _, _ = unpack(dgram:stack())
 
-	print("Eth source is: " .. ethernet:ntop(eth:src()))
+	local src = tostring(ethernet:ntop(eth:src()))
 
+	if dataset[src] then
+		dataset[src] = dataset[src] + 1
+	else
+		dataset[src] = 1
+	end
+	-- OVERHEAD END
+	
 	packet.free(p)
 end
 
