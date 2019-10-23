@@ -4,24 +4,29 @@ ARGC=$#
 
 # Argument Validation
 if [ $ARGC -ne 12 ]; then
-	echo "Use as $ ./$0 [C1] [P1] [M1] [C2] [P2] [M2] [C3] [P3] [M3] [S1] [P4] [M4]"
+	echo "Use as $ bash $0 [C1] [P1] [M1] [C2] [P2] [M2] [C3] [P3] [M3] [S1] [P4] [M4]"
 	echo "C#: The SSH Address of Client Node \#"
 	echo "S#: The SSH Address of Server Node \#"
 	echo "P#: The PCI Address of Client/Server Node \#"
 	echo "M#: The Source MAC Address of Client/Server Node \#"
+	exit 1;
 fi
 
-$C1=$1
-$P1=$2
-$C2=$3
-$P2=$4
-$C3=$5
-$P3=$6
-$S1=$7
-$P4=$8
+C1=$1
+P1=$2
+M1=$3
+C2=$4
+P2=$5
+M2=$6
+C3=$7
+P3=$8
+M3=$9
+S1=$10
+P4=$11
+M4=$12
 
 # Node Validation
-if [ $(ssh $C1 echo Hello) ] && [ $(ssh $C2 echo Hello) ] &&
+if [ $(ssh -p $C1 echo Hello) ] && [ $(ssh $C2 echo Hello) ] &&
    [ $(ssh $C3 echo Hello) ] && [ $(ssh $S1 echo Hello) ]; then
 	echo "Nodes appear to be functional."
 else
