@@ -13,7 +13,7 @@ Simple UDP packet generator for sending and receiving small bits of data. Create
 3. Clone the snabb repository: https://github.com/snabbco/snabb.git
 4. cd MultiDimSnabb
 5. bash automake.sh
-6. A binary executable named "snabb" can be found in ~/snabb/src. Call ```~/snabb/src/snabb MultiDimSnabb`` to acquire instructions on how to run my program
+6. A binary executable named "snabb" can be found in ~/snabb/src. Call ```~/snabb/src/snabb MultiDimSnabb``` to acquire instructions on how to run my program
 
 **Client**  
 For client nodes looking to spam a server with UDP packets, make sure to run ```~/snabb/src/snabb MultiDimSnabb Client --help``` for more information.
