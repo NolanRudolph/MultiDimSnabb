@@ -8,6 +8,7 @@ local lib        = require("core.lib")
 local app        = require("core.app")
 local link       = require("core.link")
 local Intel82599 = require("apps.intel_mp.intel_mp").Intel82599
+local LoadGen    = require("apps.intel_mp.loadgen").LoadGen
 
 -- Packet creation requirements
 local packet     = require("core.packet")
@@ -55,18 +56,17 @@ function Generator:new(args)
 	dgram:push(ip)
 	dgram:push(ether)
 
-	local fin_packet = dgram:packet()
-
-	local o = { packet = fin_packet }
-	-- local o = { packet = ffi.gc(ffi.C.malloc(fin_packet.length), ffi.C.free) }
-
-	-- ffi.copy(o.packet, fin_packet, fin_packet.length)
+	local o = { packet = dgram:packet() }
 
 	return setmetatable(o, {__index = Generator})
 end
 
 function Generator:pull()
-	link.transmit(self.output.output, self.packet)
+	link.transmit(self.output.output, packet.clone(self.packet))
+end
+
+function Generator:stop()
+	packet.free(self.packet)
 end
 
 function show_usage(code)
@@ -82,29 +82,17 @@ function run(args)
 	local dst_eth  = args[2]
 	local pci_addr = args[3]
 
---[[ Testing
-	local RawSocket = raw_sock.RawSocket
-	config.app(c, "socket", RawSocket, "enp6s0f0")
---]]
-
-	config.app(c, "nic", Intel82599, 
-	{
-		pciaddr = pci_addr,
-		macaddr = dst_eth,
-		vmdq = true,
-		--wait_for_link = false,
-		mtu = 1500,
-	})
-
 	config.app(c, "generator", Generator, 
 	{
 		src_eth = src_eth,
 		dst_eth = dst_eth
 	})
 
-	config.link(c, "generator.output -> nic.input")
-	config.link(c, "nic.input -> nic.output")
+	config.app(c, "nic", LoadGen, pci_addr)
 
+	config.link(c, "generator.output -> nic.input")
+
+	engine.busywait = true
 	engine.configure(c)
-	engine.main({report = {showlinks = true}, duration = 0.5})
+	engine.main({report = {showlinks = true}, duration = 10})
 end
