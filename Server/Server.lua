@@ -87,5 +87,9 @@ function run(args)
 	
 	engine.busywait = true
 	engine.configure(c)
-	engine.main({report = {showlinks = true, showapps = true}, duration = 10})
+	engine.main({report = {showlinks = true}, duration = 10})
+	
+	for k, v in pairs(dataset) do
+		print(k .. " : " .. tostring(v))
+	end
 end

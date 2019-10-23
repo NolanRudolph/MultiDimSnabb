@@ -94,5 +94,5 @@ function run(args)
 
 	engine.busywait = true
 	engine.configure(c)
-	engine.main({report = {showlinks = true}, duration = 10})
+	engine.main({duration = 10})
 end
