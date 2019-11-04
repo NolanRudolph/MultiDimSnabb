@@ -8,7 +8,7 @@ local lib        = require("core.lib")
 local app        = require("core.app")
 local link       = require("core.link")
 local Intel82599 = require("apps.intel_mp.intel_mp").Intel82599
-local LoadGen    = require("apps.intel_mp.loadgen").LoadGen
+local raw_sock   = require("apps.socket.raw")
 
 -- Packet creation requirements
 local packet     = require("core.packet")
@@ -24,50 +24,95 @@ local C = ffi.c
 -- Temp req
 local raw_sock = require("apps.socket.raw")
 
-Generator = {}
 
-function Generator:new(args)
+Incubator = {}
+
+dataset = {}
+
+function Incubator:new(args)
 	local src_eth = args["src_eth"]
-	local dst_eth = args["dst_eth"]
+        local dst_eth = args["dst_eth"]
 
-	local ether = ethernet:new(
+        local o =
 	{
-		src = ethernet:pton(src_eth),
-		dst = ethernet:pton(dst_eth),
-		type = 0x800
-	})
+		src_eth = src_eth,
+		dst_eth = dst_eth
+	}
 
-	local ip = ipv4:new(
-	{
-		ihl = 0x4500,
-		dscp = 1,
-		ttl = 255,
-		protocol = 17
-	})
-
-	local udp = _udp:new(
-	{
-		src_port = 123,
-		dst_port = 456
-	})
-
-	local dgram = datagram:new()
-	dgram:push(udp)
-	dgram:push(ip)
-	dgram:push(ether)
-
-	local o = { packet = dgram:packet() }
-
-	return setmetatable(o, {__index = Generator})
+	return setmetatable(o, {__index = Incubator})
 end
 
-function Generator:pull()
-	link.transmit(self.output.output, packet.clone(self.packet))
+function Incubator:pull()
+	assert(self.output.output, "Could not locate output port.")
+	assert(self.input.input, "Could not locate input port.")
+	local i = self.input.input
+	local o = self.output.output
+	while not link.empty(i) do
+		--local p = link.receive(i)
+		--link.transmit(o, packet.clone(p))
+		return_packet(i, o, self.src_eth, self.dst_eth)
+	end
 end
 
-function Generator:stop()
-	packet.free(self.packet)
+--[[
+function Incubator:push()
+	assert(self.input.input, "Could not locate input port.")
+	assert(self.output.output, "Could not locate output port.")
+
+	local i = self.input.input
+	local o = self.output.output
+	while not link.empty(i) do
+		return_packet(i, o, self.src_eth, self.dst_eth)
+	end
 end
+--]]
+
+function return_packet(i, o, src, dst)
+	print("Received packet from server.")
+
+	local p = link.receive(i)
+
+	local dgram = datagram:new(p, ethernet)
+	dgram:parse_n(3)
+	
+	local eth, ip, udp = unpack(dgram:stack())
+	
+	-- Check to make sure packet is from host
+	local rec_src = tostring(ethernet:ntop(eth:src()))
+	if rec_src ~= dst then
+		return
+	end
+--[[ For server
+	local src = tostring(ethernet:ntop(eth:src()))
+
+	if dataset[src] then
+		dataset[src] = dataset[src] + 1
+	else
+		dataset[src] = 1
+	end
+	
+	packet.free(p)
+	__________________________
+	for k, v in pairs(dataset) do
+		print(k .. " : " .. tostring(v))
+	end
+--]]
+
+	-- Change Ethernet src and dst (dst just becomes src)
+	eth:swap()
+
+	local ret_gram = dgram:new()
+	ret_gram:push(udp)
+	ret_gram:push(ip)
+	ret_gram:push(eth)
+
+	print("Transmitting back to server.")
+	-- Transmit packet back to server
+	link.transmit(o, packet.clone(dgram:packet()))
+
+	return
+end
+
 
 function show_usage(code)
 	print(require("program.MultiDimSnabb.Client.README_inc"))
@@ -75,24 +120,28 @@ function show_usage(code)
 end
 
 function run(args)
-	if #args ~= 3 then show_usage(1) end
+	if #args ~= 4 then show_usage(1) end
 	local c = config.new()
 
-	local src_eth  = args[1]
-	local dst_eth  = args[2]
-	local pci_addr = args[3]
+	local pci_addr = args[1]
+	local src_eth  = args[2]
+	local dst_eth  = args[3]
+	local IF       = args[4]
 
-	config.app(c, "generator", Generator, 
+	local RawSocket = raw_sock.RawSocket
+	config.app(c, "socket", RawSocket, IF)
+
+	config.app(c, "incubator", Incubator, 
 	{
 		src_eth = src_eth,
 		dst_eth = dst_eth
 	})
 
-	config.app(c, "nic", LoadGen, pci_addr)
-
-	config.link(c, "generator.output -> nic.input")
+	config.link(c, "socket.tx -> incubator.input")
+	config.link(c, "incubator.output -> socket.rx")
 
 	engine.busywait = true
 	engine.configure(c)
-	engine.main({duration = 10})
+	engine.main({report = {showlinks = true}, duration = 20})
+	
 end
