@@ -28,13 +28,30 @@ local raw_sock = require("apps.socket.raw")
 Generator = {}
 
 function Generator:new(args)
+	--[[ Node Stuff ]]--
+	dst_file = args["dst_file"]
+	local f = io.open(dst_file, "r")
+	io.input(f)
+
+	-- Check to see if file exists
+	if f == nil then
+		print("File does not exist.")
+		main.exit(1)
+	end
+
+	local num_nodes = tonumber(io.read())
+
+	local dst_eths = {}
+	for i = 1, num_nodes do
+		table.insert(dst_eths, ethernet:pton(io.read()))
+	end
+
+	--[[ Packet Stuff ]]--
 	local src_eth = args["src_eth"]
-	local dst_eth = args["dst_eth"]
 
 	local ether = ethernet:new(
 	{
 		src = ethernet:pton(src_eth),
-		dst = ethernet:pton(dst_eth),
 		type = 0x800
 	})
 
@@ -52,23 +69,43 @@ function Generator:new(args)
 		dst_port = 456
 	})
 
-	local dgram = datagram:new()
-	dgram:push(udp)
-	dgram:push(ip)
-	dgram:push(ether)
-
-	local o = { packet = dgram:packet() }
+	local o = 
+	{ 
+		eth = ether,
+		ip = ip,
+		udp = udp,
+		dgram = datagram:new(),
+		nodes = dst_eths,
+		num_nodes = num_nodes,
+		cur_node = 1
+	}
 
 	return setmetatable(o, {__index = Generator})
 end
 
-function Generator:pull()
-	link.transmit(self.output.output, packet.clone(self.packet))
-	os.execute("sleep " .. 2)
+function Generator:gen_packet()
+	local addr = self.nodes[self.cur_node]
+	print("Current Node: " .. tostring(self.cur_node) .. " // Addr: " .. ethernet:ntop(addr))
+
+	self.eth:dst(addr)
+	self.dgram = datagram:new()
+	self.dgram:push(self.udp)
+	self.dgram:push(self.ip)
+	self.dgram:push(self.eth)
+
+	if self.cur_node == self.num_nodes then
+		self.cur_node = 1
+	else
+		self.cur_node = self.cur_node + 1
+	end
+
+	return packet.clone(self.dgram:packet())
 end
 
-function Generator:stop()
-	packet.free(self.packet)
+function Generator:pull()
+	local ret_packet = self:gen_packet()
+	link.transmit(self.output.output, ret_packet)
+	os.execute("sleep " .. 1)
 end
 
 function show_usage(code)
@@ -77,18 +114,17 @@ function show_usage(code)
 end
 
 function run(args)
-	if #args ~= 4 then show_usage(1) end
+	if #args ~= 3 then show_usage(1) end
 	local c = config.new()
 
-	local pci_addr = args[1]
+	local IF       = args[1]
 	local src_eth  = args[2]
-	local dst_eth  = args[3]
-	local IF       = args[4]
+	local dst_file = args[3]
 
 	config.app(c, "generator", Generator, 
 	{
 		src_eth = src_eth,
-		dst_eth = dst_eth
+		dst_file = dst_file
 	})
 
 	local RawSocket = raw_sock.RawSocket
@@ -98,5 +134,5 @@ function run(args)
 
 	engine.busywait = true
 	engine.configure(c)
-	engine.main({})
+	engine.main({duration = 10})
 end
