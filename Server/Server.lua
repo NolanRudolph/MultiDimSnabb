@@ -93,7 +93,7 @@ end
 
 function Generator:gen_packet()
 	local addr = self.nodes[self.cur_node]
-	print("Current Node: " .. tostring(self.cur_node) .. " // Addr: " .. ethernet:ntop(addr))
+	print("Pinging Node " .. tostring(self.cur_node) .. " | Addr: " .. ethernet:ntop(addr))
 
 	self.eth:dst(addr)
 	self.dgram = datagram:new()
@@ -139,7 +139,6 @@ function Generator:push()
 		if net_eths[eth_src] then
 			-- Get the net time the request took
 			local net = temp_time - self.last_eths[eth_src]
-			print("Net: " .. tostring(net) .. " // temp_time: " .. tostring(temp_time) .. " // self.last_eths[eth_src]: " .. tostring(self.last_eths[eth_src]) .. " // net_time: " .. tostring(net_eths[eth_src]))
 			-- Take the average of the recorded times
 			if net_eths[eth_src] ~= 0 then
 				net_eths[eth_src] = (net_eths[eth_src] + net) / 2
@@ -181,8 +180,19 @@ function run(args)
 	engine.busywait = true
 	engine.configure(c)
 	engine.main({duration = 10})
-	print("Hi")
-	for k, v in pairs(net_eths) do
-		print(k .. " : " .. tostring(v))
+	
+	local low = 100
+	local low_i = 0
+	local i = 0
+	for _, v in pairs(net_eths) do
+		print("Node " .. tostring(i) .. " : " .. tostring(v))
+		if v < low then
+			low = v
+			low_i = i
+		end
+		i = i + 1
 	end
+
+	local ms_low = low * 1000
+	print(string.format("Best Connection: Node %d at %.2f ms", low_i, ms_low))
 end
