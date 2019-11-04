@@ -32,11 +32,29 @@ dataset = {}
 function Incubator:new(args)
 	local src_eth = args["src_eth"]
         local dst_eth = args["dst_eth"]
+	local latency = tonumber(args["latency"])
+	local disktype = args["disktype"]
+
+	-- Latency will be x2 b/c A -> B + B -> A
+	latency = latency * 2
+
+	-- Disk access time
+	if disktype == "HDD" then
+		latency = latency + 0.005
+	elseif disktype == "SSD" then
+		latency = latency + 0.0000001
+	else
+		print("Unknown disk type.")
+		main.exit(1)
+	end
+
+	print("My latency is " .. tostring(latency))
 
         local o =
 	{
 		src_eth = src_eth,
-		dst_eth = dst_eth
+		dst_eth = dst_eth,
+		latency = latency
 	}
 
 	return setmetatable(o, {__index = Incubator})
@@ -48,13 +66,11 @@ function Incubator:pull()
 	local i = self.input.input
 	local o = self.output.output
 	while not link.empty(i) do
-		--local p = link.receive(i)
-		--link.transmit(o, packet.clone(p))
-		return_packet(i, o, self.src_eth, self.dst_eth)
+		return_packet(i, o, self.src_eth, self.dst_eth, self.latency)
 	end
 end
 
-function return_packet(i, o, src, dst)
+function return_packet(i, o, src, dst, lat)
 	local p = link.receive(i)
 
 	local dgram = datagram:new(p, ethernet)
@@ -78,6 +94,7 @@ function return_packet(i, o, src, dst)
 	ret_gram:push(ip)
 	ret_gram:push(eth)
 
+	os.execute("sleep " .. lat)
 	print("Transmitting back to server.")
 	-- Transmit packet back to server
 	link.transmit(o, packet.clone(dgram:packet()))
@@ -92,12 +109,14 @@ function show_usage(code)
 end
 
 function run(args)
-	if #args ~= 3 then show_usage(1) end
+	if #args ~= 5 then show_usage(1) end
 	local c = config.new()
 
 	local src_eth  = args[1]
 	local dst_eth  = args[2]
 	local IF       = args[3]
+	local latency  = args[4]
+	local disktype = args[5]
 
 	local RawSocket = raw_sock.RawSocket
 	config.app(c, "socket", RawSocket, IF)
@@ -105,7 +124,9 @@ function run(args)
 	config.app(c, "incubator", Incubator, 
 	{
 		src_eth = src_eth,
-		dst_eth = dst_eth
+		dst_eth = dst_eth,
+		latency = latency,
+		disktype = disktype
 	})
 
 	config.link(c, "socket.tx -> incubator.input")
