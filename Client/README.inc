@@ -1,6 +1,5 @@
-Usage: MultiDimSnabb Client <PCI> <Src> <Dst> <IF>
+Usage: MultiDimSnabb Client <Src> <Dst> <IF>
 
-  PCI: PCI Address of Intel82599 NIC
   Src: Source MAC Address
   Dst: Destination MAC Address
   IF : Network Interface for packet transmission

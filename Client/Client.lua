@@ -54,22 +54,7 @@ function Incubator:pull()
 	end
 end
 
---[[
-function Incubator:push()
-	assert(self.input.input, "Could not locate input port.")
-	assert(self.output.output, "Could not locate output port.")
-
-	local i = self.input.input
-	local o = self.output.output
-	while not link.empty(i) do
-		return_packet(i, o, self.src_eth, self.dst_eth)
-	end
-end
---]]
-
 function return_packet(i, o, src, dst)
-	print("Received packet from server.")
-
 	local p = link.receive(i)
 
 	local dgram = datagram:new(p, ethernet)
@@ -79,9 +64,11 @@ function return_packet(i, o, src, dst)
 	
 	-- Check to make sure packet is from host
 	local rec_src = tostring(ethernet:ntop(eth:src()))
-	if rec_src ~= dst then
+	local rec_dst = tostring(ethernet:ntop(eth:dst()))
+	if rec_dst ~= src or rec_src ~= dst then
 		return
 	end
+	print("Received packet from server.")
 --[[ For server
 	local src = tostring(ethernet:ntop(eth:src()))
 
@@ -120,13 +107,12 @@ function show_usage(code)
 end
 
 function run(args)
-	if #args ~= 4 then show_usage(1) end
+	if #args ~= 3 then show_usage(1) end
 	local c = config.new()
 
-	local pci_addr = args[1]
-	local src_eth  = args[2]
-	local dst_eth  = args[3]
-	local IF       = args[4]
+	local src_eth  = args[1]
+	local dst_eth  = args[2]
+	local IF       = args[3]
 
 	local RawSocket = raw_sock.RawSocket
 	config.app(c, "socket", RawSocket, IF)
@@ -142,6 +128,6 @@ function run(args)
 
 	engine.busywait = true
 	engine.configure(c)
-	engine.main({report = {showlinks = true}, duration = 20})
+	engine.main({report = {showlinks = true}})
 	
 end
