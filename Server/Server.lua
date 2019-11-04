@@ -77,7 +77,8 @@ function Generator:new(args)
 		dgram = datagram:new(),
 		nodes = dst_eths,
 		num_nodes = num_nodes,
-		cur_node = 1
+		cur_node = 1,
+		wait = 0
 	}
 
 	return setmetatable(o, {__index = Generator})
@@ -103,9 +104,23 @@ function Generator:gen_packet()
 end
 
 function Generator:pull()
-	local ret_packet = self:gen_packet()
-	link.transmit(self.output.output, ret_packet)
-	os.execute("sleep " .. 1)
+	if self.wait ~= 100000 then
+		self.wait = self.wait + 1
+	else
+		local ret_packet = self:gen_packet()
+		link.transmit(self.output.output, ret_packet)
+		self.wait = 0
+	end
+end
+
+function Generator:push()
+	assert(self.input.input, "Could not locate input port.")
+	local i = self.input.input
+	while not link.empty(i) do
+		local p = link.receive(i)
+		print("Got packet")
+		packet.free(p)
+	end
 end
 
 function show_usage(code)
@@ -131,6 +146,7 @@ function run(args)
 	config.app(c, "server", RawSocket, IF)
 
 	config.link(c, "generator.output -> server.rx")
+	config.link(c, "server.tx -> generator.input")
 
 	engine.busywait = true
 	engine.configure(c)
