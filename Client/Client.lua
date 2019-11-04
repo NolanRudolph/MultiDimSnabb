@@ -7,7 +7,6 @@ local lib        = require("core.lib")
 -- App association requirements
 local app        = require("core.app")
 local link       = require("core.link")
-local Intel82599 = require("apps.intel_mp.intel_mp").Intel82599
 local raw_sock   = require("apps.socket.raw")
 
 -- Packet creation requirements
