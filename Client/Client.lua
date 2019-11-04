@@ -69,21 +69,6 @@ function return_packet(i, o, src, dst)
 		return
 	end
 	print("Received packet from server.")
---[[ For server
-	local src = tostring(ethernet:ntop(eth:src()))
-
-	if dataset[src] then
-		dataset[src] = dataset[src] + 1
-	else
-		dataset[src] = 1
-	end
-	
-	packet.free(p)
-	__________________________
-	for k, v in pairs(dataset) do
-		print(k .. " : " .. tostring(v))
-	end
---]]
 
 	-- Change Ethernet src and dst (dst just becomes src)
 	eth:swap()
