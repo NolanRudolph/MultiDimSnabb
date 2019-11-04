@@ -25,6 +25,8 @@ local C = ffi.c
 -- Temp req
 local raw_sock = require("apps.socket.raw")
 
+net_eths = {}
+
 Generator = {}
 
 function Generator:new(args)
@@ -42,8 +44,12 @@ function Generator:new(args)
 	local num_nodes = tonumber(io.read())
 
 	local dst_eths = {}
+	local last_eths = {}
 	for i = 1, num_nodes do
-		table.insert(dst_eths, ethernet:pton(io.read()))
+		local rec = io.read()
+		table.insert(dst_eths, ethernet:pton(rec))
+		last_eths[rec] = 0
+		net_eths[rec] = 0
 	end
 
 	--[[ Packet Stuff ]]--
@@ -78,6 +84,7 @@ function Generator:new(args)
 		nodes = dst_eths,
 		num_nodes = num_nodes,
 		cur_node = 1,
+		last_eths = last_eths,
 		wait = 0
 	}
 
@@ -94,21 +101,23 @@ function Generator:gen_packet()
 	self.dgram:push(self.ip)
 	self.dgram:push(self.eth)
 
+	self.last_eths[ethernet:ntop(addr)] = os.clock()
+	link.transmit(self.output.output, self.dgram:packet())
+	
 	if self.cur_node == self.num_nodes then
 		self.cur_node = 1
 	else
 		self.cur_node = self.cur_node + 1
 	end
-
-	return packet.clone(self.dgram:packet())
+	
+	return
 end
 
 function Generator:pull()
 	if self.wait ~= 100000 then
 		self.wait = self.wait + 1
 	else
-		local ret_packet = self:gen_packet()
-		link.transmit(self.output.output, ret_packet)
+		self:gen_packet()
 		self.wait = 0
 	end
 end
@@ -117,10 +126,30 @@ function Generator:push()
 	assert(self.input.input, "Could not locate input port.")
 	local i = self.input.input
 	while not link.empty(i) do
+		print("Received packet.")
 		local p = link.receive(i)
-		print("Got packet")
+		local temp_time = os.clock()
+
+		local dgram = datagram:new(p, ethernet)
+		dgram:parse_n(3)
+
+		local eth, _, _ = unpack(dgram:stack())
+		local eth_src = tostring(ethernet:ntop(eth:src()))
+
+		if net_eths[eth_src] then
+			-- Get the net time the request took
+			local net = temp_time - self.last_eths[eth_src]
+			print("Net: " .. tostring(net) .. " // temp_time: " .. tostring(temp_time) .. " // self.last_eths[eth_src]: " .. tostring(self.last_eths[eth_src]) .. " // net_time: " .. tostring(net_eths[eth_src]))
+			-- Take the average of the recorded times
+			if net_eths[eth_src] ~= 0 then
+				net_eths[eth_src] = (net_eths[eth_src] + net) / 2
+			else
+				net_eths[eth_src] = net
+			end
+		end
+
 		packet.free(p)
-	end
+end
 end
 
 function show_usage(code)
@@ -129,6 +158,7 @@ function show_usage(code)
 end
 
 function run(args)
+	x = os.clock()
 	if #args ~= 3 then show_usage(1) end
 	local c = config.new()
 
@@ -151,4 +181,8 @@ function run(args)
 	engine.busywait = true
 	engine.configure(c)
 	engine.main({duration = 10})
+	print("Hi")
+	for k, v in pairs(net_eths) do
+		print(k .. " : " .. tostring(v))
+	end
 end
