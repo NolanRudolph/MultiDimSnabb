@@ -26,38 +26,20 @@ local C = ffi.c
 local raw_sock = require("apps.socket.raw")
 
 net_eths = {}
-
+glob = {}
 Generator = {}
 
 function Generator:new(args)
-	--[[ Node Stuff ]]--
-	dst_file = args["dst_file"]
-	local f = io.open(dst_file, "r")
-	io.input(f)
 
-	-- Check to see if file exists
-	if f == nil then
-		print("File does not exist.")
-		main.exit(1)
-	end
-
-	local num_nodes = tonumber(io.read())
-
-	local dst_eths = {}
-	local last_eths = {}
-	for i = 1, num_nodes do
-		local rec = io.read()
-		table.insert(dst_eths, ethernet:pton(rec))
-		last_eths[rec] = 0
-		net_eths[rec] = 0
-	end
-
-	--[[ Packet Stuff ]]--
 	local src_eth = args["src_eth"]
+	local dst_eth = args["dst_eth"]
+	local name = args["name"]
+
 
 	local ether = ethernet:new(
 	{
 		src = ethernet:pton(src_eth),
+		dst = ethernet:pton(dst_eth),
 		type = 0x800
 	})
 
@@ -82,9 +64,8 @@ function Generator:new(args)
 		udp = udp,
 		dgram = datagram:new(),
 		nodes = dst_eths,
-		num_nodes = num_nodes,
-		cur_node = 1,
-		last_eths = last_eths,
+		name = name,
+		last_time = 0,
 		wait = 0
 	}
 
@@ -92,23 +73,16 @@ function Generator:new(args)
 end
 
 function Generator:gen_packet()
-	local addr = self.nodes[self.cur_node]
-	print("Pinging Node " .. tostring(self.cur_node) .. " | Addr: " .. ethernet:ntop(addr))
+	assert(self.output.output, "Could not locate output port.")
+	print("Pinging Node " .. tostring(self.name) .. " | Addr: " .. ethernet:ntop(addr))
 
-	self.eth:dst(addr)
 	self.dgram = datagram:new()
 	self.dgram:push(self.udp)
 	self.dgram:push(self.ip)
 	self.dgram:push(self.eth)
 
-	self.last_eths[ethernet:ntop(addr)] = os.clock()
+	self.last_time = os.clock()
 	link.transmit(self.output.output, self.dgram:packet())
-	
-	if self.cur_node == self.num_nodes then
-		self.cur_node = 1
-	else
-		self.cur_node = self.cur_node + 1
-	end
 	
 	return
 end
@@ -130,21 +104,19 @@ function Generator:push()
 		local p = link.receive(i)
 		local temp_time = os.clock()
 
+		--[[
 		local dgram = datagram:new(p, ethernet)
 		dgram:parse_n(3)
 
 		local eth, _, _ = unpack(dgram:stack())
 		local eth_src = tostring(ethernet:ntop(eth:src()))
+		--]]
 
-		if net_eths[eth_src] then
-			-- Get the net time the request took
-			local net = temp_time - self.last_eths[eth_src]
-			-- Take the average of the recorded times
-			if net_eths[eth_src] ~= 0 then
-				net_eths[eth_src] = (net_eths[eth_src] + net) / 2
-			else
-				net_eths[eth_src] = net
-			end
+		if (glob[self.name] == nil) then
+			glob[self.name] = {}
+			table.insert(glob[self.name], temp_time - self.last_time)
+		else
+			table.insert(glob[self.name], temp_time - self.last_time)
 		end
 
 		packet.free(p)
@@ -157,42 +129,89 @@ function show_usage(code)
 end
 
 function run(args)
-	x = os.clock()
-	if #args ~= 3 then show_usage(1) end
+	if #args ~= 1 then show_usage(1) end
 	local c = config.new()
 
-	local IF       = args[1]
-	local src_eth  = args[2]
-	local dst_file = args[3]
+	local conf_file = args[1]
 
-	config.app(c, "generator", Generator, 
+	local f = io.open(conf_file, "r")
+	io.input(f)
+
+	if f == nil then
+		print("File does not exist.")
+		main.exit(1)
+	end
+
+	src_eths = {}
+	dst_eths = {}
+	ifs = {}
+	local num_nodes = tonumber(io.read())	
+
+	for i = 1, num_nodes do
+		local src = io.read()
+		local dst = io.read()
+		local IF = io.read()
+		table.insert(src_eths, ethernet:pton(src))
+		table.insert(dst_eths, ethernet:pton(dst))
+		table.insert(ifs, IF)
+	end
+
+	config.app(c, "generator1", Generator, 
 	{
-		src_eth = src_eth,
-		dst_file = dst_file
+		src_eth = src_eth[1],
+		dst_eth = dst_eth[1],
+		name = "Wisc HDD"
+	})
+	config.app(c, "generator2", Generator, 
+	{
+		src_eth = src_eth[2],
+		dst_eth = dst_eth[2],
+		name = "Wisc SSD"
+	})
+	config.app(c, "generator3", Generator,
+	{
+		src_eth = src_eth[3],
+		dst_eth = dst_eth[3],
+		name = "Clem HDD"
+	})
+	config.app(c, "generator4", Generator,
+	{
+		src_eth = src_eth[4],
+		dst_eth = dst_eth[4],
+		name = "Clem SSD"
 	})
 
-	local RawSocket = raw_sock.RawSocket
-	config.app(c, "server", RawSocket, IF)
+	local RawSocket1 = raw_sock.RawSocket
+	local RawSocket2 = raw_sock.RawSocket
+	local RawSocket3 = raw_sock.RawSocket
+	local RawSocket4 = raw_sock.RawSocket
 
-	config.link(c, "generator.output -> server.rx")
-	config.link(c, "server.tx -> generator.input")
+	config.app(c, "server1", RawSocket1, ifs[1])
+	config.app(c, "server2", RawSocket2, ifs[2])
+	config.app(c, "server3", RawSocket3, ifs[3])
+	config.app(c, "server4", RawSocket4, ifs[4])
 
+	config.link(c, "generator1.output -> server1.rx")
+	config.link(c, "generator2.output -> server2.rx")
+	config.link(c, "generator3.output -> server3.rx")
+	config.link(c, "generator4.output -> server4.rx")
+
+	config.link(c, "server1.tx -> generator1.input")
+	config.link(c, "server2.tx -> generator2.input")
+	config.link(c, "server3.tx -> generator3.input")
+	config.link(c, "server4.tx -> generator4.input")
+
+	x = os.clock()
 	engine.busywait = true
 	engine.configure(c)
 	engine.main({duration = 10})
 	
-	local low = 100
-	local low_i = 0
-	local i = 0
-	for _, v in pairs(net_eths) do
-		print("Node " .. tostring(i) .. " : " .. tostring(v))
-		if v < low then
-			low = v
-			low_i = i
+	for key, value in pairs(glob) do
+		print("Key: " .. key)
+		for time in value do
+			print("Value: " .. time)
 		end
-		i = i + 1
+		print("---------------------------------------")
 	end
 
-	local ms_low = low * 1000
-	print(string.format("Best Connection: Node %d at %.2f ms", low_i, ms_low))
 end
